@@ -6,19 +6,19 @@ import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.Bundle;
-import android.view.GestureDetector;
-import android.view.MotionEvent;
+import android.util.Log;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+
 public class MainActivity extends AppCompatActivity {
-    private SensorManager sensorManager;
-    private Sensor sensor;
-    private SensorEventListener sensorListener;
     private TextView xTextView, yTextView, zTextView;
-    private GestureDetector gestureDetector;
+    private int taps = 0;
+    private long lastTime = 0;
+    private float lastZAcc;
+    private static final int SHAKE_THRESHOLD = 800;
+    private static final float TIME_THRESHOLD = 5.0f;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -29,7 +29,7 @@ public class MainActivity extends AppCompatActivity {
         yTextView = findViewById(R.id.yTextView);
         zTextView = findViewById(R.id.zTextView);
 
-        sensorListener = new SensorEventListener() {
+        SensorEventListener sensorListener = new SensorEventListener() {
             @Override
             public void onSensorChanged(SensorEvent sensorEvent) {
                 // Valors de l'acceleròmetre en m/s^2
@@ -41,6 +41,25 @@ public class MainActivity extends AppCompatActivity {
                 xTextView.setText(String.valueOf(xAcc));
                 yTextView.setText(String.valueOf(yAcc));
                 zTextView.setText(String.valueOf(zAcc));
+
+                // Detectem el double tap
+                long curTime = System.currentTimeMillis();
+                long timeDiff = curTime - lastTime;
+
+                if (timeDiff > TIME_THRESHOLD) {
+                    lastTime = curTime;
+                    float speed = Math.abs(zAcc - lastZAcc) / timeDiff * 10000;
+
+                    if (speed > SHAKE_THRESHOLD) {
+                        taps++;
+                        Log.i("INFO", "Taps: " + taps);
+                        if (taps == 2) {
+                            Toast.makeText(MainActivity.this, "You've done a Double Tap!", Toast.LENGTH_SHORT).show();
+                            taps = 0;
+                        }
+                    }
+                    lastZAcc = zAcc;
+                }
             }
 
             @Override
@@ -50,29 +69,12 @@ public class MainActivity extends AppCompatActivity {
         };
 
         // Seleccionem el tipus de sensor
-        sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
-        sensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        SensorManager sensorMgr = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+        Sensor sensor = sensorMgr.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
 
         // Registrem el Listener per capturar els events del sensor
         if (sensor != null) {
-            sensorManager.registerListener(sensorListener, sensor, SensorManager.SENSOR_DELAY_NORMAL);
-        }
-
-        // Creem una nova instància pel Gesture Detector
-        gestureDetector = new GestureDetector(this, new GestureListener());
-    }
-
-    @Override
-    public boolean onTouchEvent(MotionEvent event) {
-        // Passa l'event a la instància del Gesture Detector
-        return gestureDetector.onTouchEvent(event) || super.onTouchEvent(event);
-    }
-    private class GestureListener extends GestureDetector.SimpleOnGestureListener {
-        @Override
-        public boolean onDoubleTap(@NonNull MotionEvent e) {
-            // Es cridarà quan es detecti un "double tap"
-            Toast.makeText(MainActivity.this, "Has fet un doble tap!", Toast.LENGTH_SHORT).show();
-            return true;
+            sensorMgr.registerListener(sensorListener, sensor, SensorManager.SENSOR_DELAY_NORMAL);
         }
     }
 }
